@@ -57,6 +57,6 @@ v.external input="PG:host=localhost user=postgres dbname=postgres layer=geogitte
 # set region to layer
 g.region vector=gegitter
 # rasterize
-v.to.rast input=geogitter type=area output=zensusraster use=attr attribute_column=einwohner where=einwohner>20 memory=4000 --verbose
+v.to.rast input=geogitter type=area output=zensusraster use=attr attribute_column=einwohner where="einwohner > 20" memory=4000 --verbose
 # export as GeoTiff
-r.out.gdal -v input=zensusraster output=zensusraster.tif format=GTiff
+r.out.gdal -m -v input=zensusraster output=zensusraster.tif format=GTiff createopt="COMPRESS=LZW"
