@@ -14,6 +14,9 @@ zensus='https://www.zensus2011.de/SharedDocs/Downloads/DE/Pressemitteilung/Demog
 TMPFILE='zensus.zip'
 wget $zensus -O $TMPFILE
 unzip zensus.zip
+# first row to lowercase
+sed -i '1s/.*/\L&/' Zensus_Bevoelkerung_100m-Gitter.csv
+
 #rm zensus.zip
 
 #download and unzip geogitter100m LAEA from BKG
@@ -24,18 +27,16 @@ mkdir geogitter_shp_LAEA
 unzip geogitter.zip -d geogitter_shp_LAEA
 
 # create postgres table for zensus data
-psql -d postgres -U postgres psql
+sudo -u postgres psql -d postgres -c 'CREATE TABLE zensusdata (gitter_id_100m text,x_mp_100m integer,y_mp_100m integer,einwohner integer);'
+sudo -u postgres psql
 # inside psql command prompt
 # Install PostGIS Extension if necessary
-# CREATE EXTENSION POTSGIS;
-CREATE TABLE zensusdata;
-("Gitter_ID_100m" text,"x_mp_100m" integer,"y_mp_100m" integer,"Einwohner" integer);
-\copy zensusdata FROM 'zensus11utf8.csv' DELIMITER ';' csv header;
-ALTER TABLE zensusdata
-RENAME COLUMN "Gitter_ID_100m" to "gitter_id_100m";
-exit
+ CREATE EXTENSION POTSGIS;
+\copy zensusdata FROM 'Zensus_Bevoelkerung_100m-Gitter.csv' DELIMITER ';' csv header;
+\q
 
 # create table for geogitter100m and fill it via shp2pgsql
+# create pgpass file to avoid password promt
 # takes a while
 shp2pgsql -c -D -s 3035 -I "geogitter_shp_LAEA/100kmN26E43_DE_Grid_ETRS89-LAEA_100m.shp" public.geogitter | psql -h localhost -d postgres -U postgres
 for f in geogitter_shp_LAEA/*.shp
@@ -47,8 +48,8 @@ sudo -u postgres psql -f "join.sql";
 
 # grass
 # create location
-grass76 -c epsg:3035 -e ~/3035_zensus/
-grass76 3035_zensus/PERMANENT/
+grass76 -c epsg:3035 -e ~/grassdata/3035_zensus/
+grass76 ~/grassdata/3035_zensus/PERMANENT/
 db.connect driver=pg database=postgres
 # saves password to file
 db.login user=postgres password=*** host=localhost #port=5432
