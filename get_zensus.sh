@@ -9,10 +9,12 @@
 #zensus2011 datasource "Bevölkerung im 100 Meter-Gitter"
 #https://www.zensus2011.de/SharedDocs/Downloads/DE/Pressemitteilung/DemografischeGrunddaten/csv_Bevoelkerung_100m_Gitter.zip?__blob=publicationFile&v=3
 
+grass=grass78
+
 #download and unzip csv
 zensus='https://www.zensus2011.de/SharedDocs/Downloads/DE/Pressemitteilung/DemografischeGrunddaten/csv_Bevoelkerung_100m_Gitter.zip?__blob=publicationFile&v=3'
 TMPFILE='zensus.zip'
-wget $zensus -O $TMPFILE
+wget -c $zensus -O $TMPFILE
 unzip zensus.zip
 # first row to lowercase
 sed -i '1s/.*/\L&/' Zensus_Bevoelkerung_100m-Gitter.csv
@@ -22,7 +24,7 @@ sed -i '1s/.*/\L&/' Zensus_Bevoelkerung_100m-Gitter.csv
 #download and unzip geogitter100m LAEA from BKG
 geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.shape.zip'
 TMPFILE=geogitter.zip
-wget $geogitter -O $TMPFILE
+wget -c $geogitter -O $TMPFILE
 mkdir geogitter_shp_LAEA
 unzip geogitter.zip -d geogitter_shp_LAEA
 
@@ -31,7 +33,7 @@ sudo -u postgres psql -d postgres -c 'CREATE TABLE zensusdata (gitter_id_100m te
 sudo -u postgres psql
 # inside psql command prompt
 # Install PostGIS Extension if necessary
- CREATE EXTENSION POTSGIS;
+ CREATE EXTENSION POSTGIS;
 \copy zensusdata FROM 'Zensus_Bevoelkerung_100m-Gitter.csv' DELIMITER ';' csv header;
 \q
 
@@ -48,16 +50,16 @@ sudo -u postgres psql -f "join.sql";
 
 # grass
 # create location
-grass76 -c epsg:3035 -e ~/grassdata/3035_zensus/
-grass76 ~/grassdata/3035_zensus/PERMANENT/
+$grass -c epsg:3035 -e ~/grassdata/3035_zensus/
+$grass ~/grassdata/3035_zensus/PERMANENT/
 db.connect driver=pg database=postgres
 # saves password to file
 db.login user=postgres password=*** host=localhost #port=5432
 # link postgres layer to grass
 v.external input="PG:host=localhost user=postgres dbname=postgres layer=geogitter"
 # set region to layer
-g.region vector=gegitter
+g.region vector=gegitter -p
 # rasterize
 v.to.rast input=geogitter type=area output=zensusraster use=attr attribute_column=einwohner where="einwohner > 20" memory=4000 --verbose
 # export as GeoTiff
-r.out.gdal -m -v input=zensusraster output=zensusraster.tif format=GTiff createopt="COMPRESS=LZW"
+r.out.gdal -m -v input=zensusraster output=zensusraster.tif format=GTiff createopt="COMPRESS=LZW" overviews=4
