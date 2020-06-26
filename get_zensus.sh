@@ -19,31 +19,15 @@ unzip zensus.zip
 # first row to lowercase
 sed -i '1s/.*/\L&/' Zensus_Bevoelkerung_100m-Gitter.csv
 
-#rm zensus.zip
+rm zensus.zip
 
 #download and unzip geogitter100m LAEA from BKG
-geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.shape.zip'
+geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.gpkg.zip'
 TMPFILE=geogitter.zip
 wget -c $geogitter -O $TMPFILE
-mkdir geogitter_shp_LAEA
-unzip geogitter.zip -d geogitter_shp_LAEA
+unzip geogitter.zip -d .
 
-# create postgres table for zensus data
-sudo -u postgres psql -d postgres -c 'CREATE TABLE zensusdata (gitter_id_100m text,x_mp_100m integer,y_mp_100m integer,einwohner integer);'
-sudo -u postgres psql
-# inside psql command prompt
-# Install PostGIS Extension if necessary
- CREATE EXTENSION POSTGIS;
-\copy zensusdata FROM 'Zensus_Bevoelkerung_100m-Gitter.csv' DELIMITER ';' csv header;
-\q
 
-# create table for geogitter100m and fill it via shp2pgsql
-# create pgpass file to avoid password promt
-# takes a while
-shp2pgsql -c -D -s 3035 -I "geogitter_shp_LAEA/100kmN26E43_DE_Grid_ETRS89-LAEA_100m.shp" public.geogitter | psql -h localhost -d postgres -U postgres
-for f in geogitter_shp_LAEA/*.shp
-    do shp2pgsql -a -D -s 3035 -I $f public.geogitter | psql -h localhost -d postgres -U postgres
-done
 
 # perform attribute join
 sudo -u postgres psql -f "join.sql";
@@ -52,11 +36,10 @@ sudo -u postgres psql -f "join.sql";
 # create location
 $grass -c epsg:3035 -e ~/grassdata/3035_zensus/
 $grass ~/grassdata/3035_zensus/PERMANENT/
-db.connect driver=pg database=postgres
-# saves password to file
-db.login user=postgres password=*** host=localhost #port=5432
 # link postgres layer to grass
-v.external input="PG:host=localhost user=postgres dbname=postgres layer=geogitter"
+# limited to 10000 polygons using where clause
+v.external input=/home/hannes/geodata/geogitter/DE_Grid_ETRS89-LAEA_100m.gpkg layer=de_grid_laea_100m output=geogitter2 where="id LIKE '%N307%E411%'"
+
 # set region to layer
 g.region vector=gegitter -p
 # rasterize
