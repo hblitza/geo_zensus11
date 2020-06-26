@@ -1,7 +1,14 @@
-ALTER TABLE geogitter
-ADD COLUMN "einwohner" integer;
+ALTER TABLE de_grid_laea_100m ADD einwohner integer;
 
-UPDATE geogitter a
-SET einwohner = b.einwohner
-FROM zensusdata b
-WHERE a.id = b.gitter_id_100m;
+UPDATE de_grid_laea_100m
+SET
+    einwohner = (SELECT zensusdata.einwohner
+                                FROM zensusdata
+                                WHERE zensusdata.gitter_id_100m = de_grid_laea_100m.id )
+WHERE
+    EXISTS (
+       SELECT *
+       FROM zensusdata
+       WHERE zensusdata.gitter_id_100m = de_grid_laea_100m.id
+   )
+
