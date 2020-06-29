@@ -27,7 +27,7 @@ geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_
 TMPFILE=geogitter.zip
 wget -c $geogitter -O $TMPFILE
 unzip geogitter.zip -d .
-rm gegitter.zip
+rm geogitter.zip
 
 # create new gpkg with filtered features
 ogr2ogr \
