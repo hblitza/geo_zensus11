@@ -40,12 +40,13 @@ ogr2ogr \
     -f GPKG geogitter_subset.gpkg \
     DE_Grid_ETRS89-LAEA_100m.gpkg
 # import csv to gpkg using sqlite3 https://sqlite.org/cli.html
-sqlite3
+sqlite3 << EOF
 # in sqlite 3
-.open geogitter_subset
+.open geogitter_subset.gpkg
 .separator ";"
-.import zensus_subset_Bonn.csv zensusdata
+.import zensus_subset_bonn.csv zensusdata
 .quit
+EOF
 
 # perform table join
 ogrinfo geogitter_subset.gpkg -sql @join.sql
