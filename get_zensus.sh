@@ -28,13 +28,17 @@ TMPFILE=geogitter.zip
 wget -c $geogitter -O $TMPFILE
 unzip geogitter.zip
 rm geogitter.zip
+# layer name:
+# ogrinfo -so DE_Grid_ETRS89-LAEA_100m.gpkg 
+# INFO: Open of `DE_Grid_ETRS89-LAEA_100m.gpkg'
+#       using driver `GPKG' successful.
+# 1: de_grid_laea_100m (3D Measured Unknown (any))
 
 # create new gpkg with filtered features
 ogr2ogr \
-    where id LIKE '%N307%E411%' \
-    -f geogitter_subset \
+    -where "id LIKE '%N307%E411%'"\
+    -f GPKG geogitter_subset.gpkg \
     DE_Grid_ETRS89-LAEA_100m.gpkg
-
 # import csv to gpkg using sqlite3 https://sqlite.org/cli.html
 sqlite3
 # in sqlite 3
