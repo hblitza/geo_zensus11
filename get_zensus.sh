@@ -58,7 +58,7 @@ $grass ~/grassdata/3035_zensus/PERMANENT/
 # link postgres layer to grass
 v.external input=$pwd/geogitter_subset.gpkg layer=de_grid_laea_100m output=geogitter_subset --overwrite
 # set region to layer
-g.region vector=gegitter_subset -p
+g.region vector=geogitter_subset -p
 # rasterize
 v.to.rast input=geogitter_subset type=area output=zensusraster use=attr attribute_column=einwohner memory=4000 --verbose
 # export as GeoTiff
