@@ -26,7 +26,7 @@ awk -F ";" '$1 ~ /N307/' Zensus_Bevoelkerung_100m-Gitter.csv | awk -F ";" '$1 ~ 
 geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.gpkg.zip'
 TMPFILE=geogitter.zip
 wget -c $geogitter -O $TMPFILE
-unzip geogitter.zip -d .
+unzip geogitter.zip
 rm geogitter.zip
 
 # create new gpkg with filtered features
