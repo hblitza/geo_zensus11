@@ -8,19 +8,20 @@
 
 grass=grass78
 cwd=$(pwd)
+start=$(date)
 
 # #download and unzip csv
 zensus='https://www.zensus2011.de/SharedDocs/Downloads/DE/Pressemitteilung/DemografischeGrunddaten/csv_Bevoelkerung_100m_Gitter.zip?__blob=publicationFile&v=3'
 TMPFILE='zensus.zip'
 wget -c $zensus -O $TMPFILE
 unzip zensus.zip
-# first row to lowercase
-sed -i '1s/.*/\L&/' Zensus_Bevoelkerung_100m-Gitter.csv
-
 rm zensus.zip
 
 # extract entries for the grid N307E411 (Bonn) (10000 rows)
-awk -F ";" '$1 ~ /N307/' Zensus_Bevoelkerung_100m-Gitter.csv | awk -F ";" '$1 ~ /E411/' > zensus_subset_bonn.csv
+printf "Create subset from zensus dataset..."
+awk -F ";" '$1 ~ /gitter_id/' Zensus_Bevoelkerung_100m-Gitter.csv > zensus_subset_bonn.csv
+sed -i '1s/.*/\L&/' zensus_subset_bonn.csv
+awk -F ";" '$1 ~ /N307/' Zensus_Bevoelkerung_100m-Gitter.csv | awk -F ";" '$1 ~ /E411/' >> zensus_subset_bonn.csv
 
 # download and unzip geogitter100m LAEA from BKG
 geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.gpkg.zip'
@@ -28,27 +29,32 @@ TMPFILE=geogitter.zip
 wget -c $geogitter -O $TMPFILE
 unzip geogitter.zip
 rm geogitter.zip
+
 # layer name:
 # ogrinfo -so DE_Grid_ETRS89-LAEA_100m.gpkg 
 # INFO: Open of `DE_Grid_ETRS89-LAEA_100m.gpkg'
 #       using driver `GPKG' successful.
 # 1: de_grid_laea_100m (3D Measured Unknown (any))
 
-# create new gpkg with filtered features
+# # create new gpkg with filtered features
+printf "Create subset of geogitter..."
 ogr2ogr \
-    -where "id LIKE '%N307%E411%'"\
+    -where "id LIKE '%N307%E411%'" \
     -f GPKG geogitter_subset.gpkg \
-    DE_Grid_ETRS89-LAEA_100m.gpkg
+    DE_Grid_ETRS89-LAEA_100m.gpkg \
+    de_grid_laea_100m
+
 # import csv to gpkg using sqlite3 https://sqlite.org/cli.html
+printf "Import zensus subset into GPKG"
 sqlite3 << EOF
-# in sqlite 3
 .open geogitter_subset.gpkg
 .separator ";"
 .import zensus_subset_bonn.csv zensusdata
 .quit
 EOF
 
-# perform table join
+printf "Perform table join"
+ogrinfo geogitter_subset.gpkg -sql "ALTER TABLE de_grid_laea_100m ADD einwohner integer;"
 ogrinfo geogitter_subset.gpkg -sql @join.sql
 
 # grass
@@ -63,3 +69,11 @@ g.region vector=geogitter_subset -p
 v.to.rast input=geogitter_subset type=area output=zensusraster use=attr attribute_column=einwohner memory=4000 --verbose
 # export as GeoTiff
 r.out.gdal -m -v input=zensusraster output=zensusraster.tif format=GTiff createopt="COMPRESS=LZW" overviews=4
+
+end=$(date)
+
+echo Start time: $start
+
+echo End time: $end
+
+exit 0

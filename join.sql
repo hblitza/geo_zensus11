@@ -1,5 +1,3 @@
-ALTER TABLE de_grid_laea_100m ADD einwohner integer;
-
 UPDATE de_grid_laea_100m
 SET
     einwohner = (SELECT zensusdata.einwohner
@@ -11,4 +9,4 @@ WHERE
        FROM zensusdata
        WHERE zensusdata.gitter_id_100m = de_grid_laea_100m.id
    )
-
+;
