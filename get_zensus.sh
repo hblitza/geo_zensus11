@@ -1,65 +1,79 @@
 #!/bin/bash
 
 ###################################################################################################
-# script to create 100m raster cells of Zensus 2011 data using the BKG 100m geogitter
-# required: postgres db, psql, shp2pgsql, GrassGIS (e.g. 7.6)
+# script to create 100m raster cells of Zensus 2011 data using the BKG 100m geogitter (GPKG)
+# required: gdal, awk, sqlite3 (cmd tools), GrassGIS (e.g. 7.8)
 # author: Hannes Blitza, blitza@terrestris.de
 ###################################################################################################
 
-#zensus2011 datasource "Bevölkerung im 100 Meter-Gitter"
-#https://www.zensus2011.de/SharedDocs/Downloads/DE/Pressemitteilung/DemografischeGrunddaten/csv_Bevoelkerung_100m_Gitter.zip?__blob=publicationFile&v=3
-
 grass=grass78
+cwd=$(pwd)
+start=$(date)
 
-#download and unzip csv
+# #download and unzip csv
 zensus='https://www.zensus2011.de/SharedDocs/Downloads/DE/Pressemitteilung/DemografischeGrunddaten/csv_Bevoelkerung_100m_Gitter.zip?__blob=publicationFile&v=3'
 TMPFILE='zensus.zip'
 wget -c $zensus -O $TMPFILE
 unzip zensus.zip
-# first row to lowercase
-sed -i '1s/.*/\L&/' Zensus_Bevoelkerung_100m-Gitter.csv
+rm zensus.zip
 
-#rm zensus.zip
+# extract entries for the grid N307E411 (Bonn) (10000 rows)
+printf "Create subset from zensus dataset..."
+awk -F ";" '$1 ~ /gitter_id/' Zensus_Bevoelkerung_100m-Gitter.csv > zensus_subset_bonn.csv
+sed -i '1s/.*/\L&/' zensus_subset_bonn.csv
+awk -F ";" '$1 ~ /N307/' Zensus_Bevoelkerung_100m-Gitter.csv | awk -F ";" '$1 ~ /E411/' >> zensus_subset_bonn.csv
 
-#download and unzip geogitter100m LAEA from BKG
-geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.shape.zip'
+# download and unzip geogitter100m LAEA from BKG
+geogitter='https://daten.gdz.bkg.bund.de/produkte/sonstige/geogitter/aktuell/DE_Grid_ETRS89-LAEA_100m.gpkg.zip'
 TMPFILE=geogitter.zip
 wget -c $geogitter -O $TMPFILE
-mkdir geogitter_shp_LAEA
-unzip geogitter.zip -d geogitter_shp_LAEA
+unzip geogitter.zip
+rm geogitter.zip
 
-# create postgres table for zensus data
-sudo -u postgres psql -d postgres -c 'CREATE TABLE zensusdata (gitter_id_100m text,x_mp_100m integer,y_mp_100m integer,einwohner integer);'
-sudo -u postgres psql
-# inside psql command prompt
-# Install PostGIS Extension if necessary
- CREATE EXTENSION POSTGIS;
-\copy zensusdata FROM 'Zensus_Bevoelkerung_100m-Gitter.csv' DELIMITER ';' csv header;
-\q
+# layer name:
+# ogrinfo -so DE_Grid_ETRS89-LAEA_100m.gpkg 
+# INFO: Open of `DE_Grid_ETRS89-LAEA_100m.gpkg'
+#       using driver `GPKG' successful.
+# 1: de_grid_laea_100m (3D Measured Unknown (any))
 
-# create table for geogitter100m and fill it via shp2pgsql
-# create pgpass file to avoid password promt
-# takes a while
-shp2pgsql -c -D -s 3035 -I "geogitter_shp_LAEA/100kmN26E43_DE_Grid_ETRS89-LAEA_100m.shp" public.geogitter | psql -h localhost -d postgres -U postgres
-for f in geogitter_shp_LAEA/*.shp
-    do shp2pgsql -a -D -s 3035 -I $f public.geogitter | psql -h localhost -d postgres -U postgres
-done
+# # create new gpkg with filtered features
+printf "Create subset of geogitter..."
+ogr2ogr \
+    -where "id LIKE '%N307%E411%'" \
+    -f GPKG geogitter_subset.gpkg \
+    DE_Grid_ETRS89-LAEA_100m.gpkg \
+    de_grid_laea_100m
 
-# perform attribute join
-sudo -u postgres psql -f "join.sql";
+# import csv to gpkg using sqlite3 https://sqlite.org/cli.html
+printf "Import zensus subset into GPKG"
+sqlite3 << EOF
+.open geogitter_subset.gpkg
+.separator ";"
+.import zensus_subset_bonn.csv zensusdata
+.quit
+EOF
+
+printf "Perform table join"
+ogrinfo geogitter_subset.gpkg -sql "ALTER TABLE de_grid_laea_100m ADD einwohner integer;"
+ogrinfo geogitter_subset.gpkg -sql @join.sql
 
 # grass
 # create location
 $grass -c epsg:3035 -e ~/grassdata/3035_zensus/
 $grass ~/grassdata/3035_zensus/PERMANENT/
-db.connect driver=pg database=postgres
-# saves password to file
-db.login user=postgres password=*** host=localhost #port=5432
 # link postgres layer to grass
-v.external input="PG:host=localhost user=postgres dbname=postgres layer=geogitter"
+v.external input=$pwd/geogitter_subset.gpkg layer=de_grid_laea_100m output=geogitter_subset --overwrite
 # set region to layer
-g.region vector=gegitter -p
+g.region vector=geogitter_subset -p
 # rasterize
-v.to.rast input=geogitter type=area output=zensusraster use=attr attribute_column=einwohner where="einwohner > 20" memory=4000 --verbose
+v.to.rast input=geogitter_subset type=area output=zensusraster use=attr attribute_column=einwohner memory=4000 --verbose
 # export as GeoTiff
 r.out.gdal -m -v input=zensusraster output=zensusraster.tif format=GTiff createopt="COMPRESS=LZW" overviews=4
+
+end=$(date)
+
+echo Start time: $start
+
+echo End time: $end
+
+exit 0
